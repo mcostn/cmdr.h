@@ -20,6 +20,7 @@ static void usage()
            "  --int       int value\n"
            "  --double    double value\n"
            "  --float     float value\n"
+           "  --bool      bool value\n"
            "  -h, --help  show this message\n\n");
 }
 
@@ -75,6 +76,10 @@ int main(int argc, char **argv)
     float float_value;
     if (cmdr_flag_float(&cmdr, "--float", &float_value))
         printf("flag: --float, value is %f\n", float_value);
+
+    bool bool_value;
+    if (cmdr_flag_bool(&cmdr, "--bool", &bool_value))
+        printf("flag: --bool, value is %s\n", bool_value ? "true" : "false");
 
     int idx;
     if (cmdr_find(&cmdr, "--argv-pos", &idx))
