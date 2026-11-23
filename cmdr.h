@@ -7,11 +7,13 @@ struct cmdr_state
 {
     int argc;
     char **argv;
+    char *error;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+extern const char *cmdr_error(struct cmdr_state *state);
 extern int cmdr_init(struct cmdr_state *state, int argc, char **argv);
 extern int cmdr_end(struct cmdr_state *state);
 extern int cmdr_find(struct cmdr_state *state, const char *str, int *out_idx);
@@ -57,6 +59,12 @@ static void cmdr_internal_trim(char *str);
 static void cmdr_internal_trim_left(char *str);
 static void cmdr_internal_trim_right(char *str);
 
+const char *cmdr_error(struct cmdr_state *state)
+{
+    CMDR_ASSERT(state != NULL);
+    return state->error;
+}
+
 int cmdr_init(struct cmdr_state *state, int argc, char **argv)
 {
     CMDR_ASSERT(state != NULL);
@@ -65,6 +73,7 @@ int cmdr_init(struct cmdr_state *state, int argc, char **argv)
 
     state->argc = argc;
     state->argv = argv;
+    state->error = NULL;
     return 0;
 }
 
@@ -74,6 +83,7 @@ int cmdr_end(struct cmdr_state *state)
 
     state->argc = 0;
     state->argv = NULL;
+    state->error = NULL;
     return 0;
 }
 
@@ -100,6 +110,7 @@ int cmdr_command(struct cmdr_state *state, const char *cmd)
     CMDR_ASSERT_MSG(cmdr_internal_valid_command(cmd),
                     "invalid command name: %s",
                     cmd);
+
     return cmdr_find(state, cmd, NULL);
 }
 
@@ -110,6 +121,7 @@ int cmdr_flag(struct cmdr_state *state, const char *flag)
     CMDR_ASSERT_MSG(cmdr_internal_valid_flag(flag),
                     "invalid flag name: %s",
                     flag);
+
     return cmdr_find(state, flag, NULL);
 }
 
@@ -134,8 +146,11 @@ static int cmdr_internal_flag_raw(struct cmdr_state *state, const char *flag, co
         }
 
         if (arg[len] == '\0') {
-            if (i + 1 >= state->argc)
-                return 0;
+            if (i + 1 >= state->argc) {
+                state->error = "missing flag value";
+                return -1;
+            }
+
             *out = state->argv[i + 1];
             return 1;
         }
@@ -173,8 +188,14 @@ int cmdr_flag_long(struct cmdr_state *state, const char *flag, long *out)
     errno = 0;
     long v = strtol(raw, &end, 10);
     cmdr_internal_trim_right(end);
-    if (end == raw || *end != '\0' || errno == ERANGE)
-        return 0;
+    if (end == raw || *end != '\0') {
+        state->error = "invalid long";
+        return -1;
+    } else if (errno == ERANGE) {
+        state->error = "out of range";
+        return -1;
+    }
+
 
     *out = v;
     return 1;
@@ -190,10 +211,13 @@ int cmdr_flag_int(struct cmdr_state *state, const char *flag, int *out)
                     flag);
 
     long v;
-    if (!cmdr_flag_long(state, flag, &v))
-        return 0;
-    if (v < INT_MIN || v > INT_MAX)
-        return 0;
+    int rc = cmdr_flag_long(state, flag, &v);
+    if (rc != 1)
+        return rc;
+    if (v < INT_MIN || v > INT_MAX) {
+        state->error = "out of range";
+        return -1;
+    }
 
     *out = (int)v;
     return 1;
@@ -215,16 +239,22 @@ int cmdr_flag_double(struct cmdr_state *state, const char *flag, double *out)
     errno = 0;
     char *end = NULL;
     double v = strtod(raw, &end);
-    if (end == raw)
-        return 0;
-    if (errno == ERANGE)
-        return 0;
-    if (!isfinite(v))
-        return 0;
+    if (end == raw) {
+        state->error = "invalid double";
+        return -1;
+    } else if (errno == ERANGE) {
+        state->error = "out of range";
+        return -1;
+    } else if (!isfinite(v)) {
+        state->error = "infinite double";
+        return -1;
+    }
 
     cmdr_internal_trim_right(end);
-    if (*end != '\0')
-        return 0;
+    if (*end != '\0') {
+        state->error = "invalid double";
+        return -1;
+    }
 
     *out = v;
     return 1;
@@ -240,14 +270,19 @@ int cmdr_flag_float(struct cmdr_state *state, const char *flag, float *out)
                     flag);
 
     double v;
-    if (!cmdr_flag_double(state, flag, &v))
-        return 0;
-    if (v > FLT_MAX || v < -FLT_MAX)
-        return 0;
+    int rc = cmdr_flag_double(state, flag, &v);
+    if (rc != 1)
+        return rc;
+    if (v > FLT_MAX || v < -FLT_MAX) {
+        state->error = "invalid float";
+        return -1;
+    }
 
     float result = (float)v;
-    if (!isfinite(result))
-        return 0;
+    if (!isfinite(result)) {
+        state->error = "infinite float";
+        return -1;
+    }
 
     *out = result;
     return 1;
@@ -271,12 +306,14 @@ int cmdr_flag_bool(struct cmdr_state *state, const char *flag, bool *out)
     cmdr_internal_strlower(buf);
     cmdr_internal_trim(buf);
 
-    if (strcmp(buf, "true") == 0 || strcmp(buf, "yes") == 0)
+    if (strcmp(buf, "true") == 0 || strcmp(buf, "yes") == 0) {
         *out = true;
-    else if (strcmp(buf, "false") == 0 || strcmp(buf, "no") == 0)
+    } else if (strcmp(buf, "false") == 0 || strcmp(buf, "no") == 0) {
         *out = false;
-    else
-        return 0;
+    } else {
+        state->error = "invalid bool";
+        return -1;
+    }
 
     return 1;
 }
