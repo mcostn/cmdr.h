@@ -181,8 +181,9 @@ int cmdr_flag_long(struct cmdr_state *state, const char *flag, long *out)
                     flag);
 
     const char *raw;
-    if (!cmdr_internal_flag_raw(state, flag, &raw))
-        return 0;
+    int rc = cmdr_internal_flag_raw(state, flag, &raw);
+    if (rc != 1)
+        return rc;
 
     char *end;
     errno = 0;
@@ -233,8 +234,9 @@ int cmdr_flag_double(struct cmdr_state *state, const char *flag, double *out)
                     flag);
 
     const char *raw;
-    if (!cmdr_internal_flag_raw(state, flag, &raw))
-        return 0;
+    int rc = cmdr_internal_flag_raw(state, flag, &raw);
+    if (rc != 1)
+        return rc;
 
     errno = 0;
     char *end = NULL;
@@ -298,7 +300,8 @@ int cmdr_flag_bool(struct cmdr_state *state, const char *flag, bool *out)
                     flag);
 
     const char *raw;
-    if (!cmdr_internal_flag_raw(state, flag, &raw))
+    int rc = cmdr_internal_flag_raw(state, flag, &raw);
+    if (rc != 1)
         return 0;
 
     char buf[32];
