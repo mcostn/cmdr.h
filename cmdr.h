@@ -41,6 +41,7 @@ extern int cmdr_confirm_default(struct cmdr_state *state, const char *msg, int d
 #include <float.h>
 #include <math.h>
 
+#if !defined(CMDR_ASSERT_MSG) && !defined(CMDR_ASSERT)
 #define CMDR_ASSERT_MSG(cond, msg, ...) \
     do { \
         if (!(cond)) { \
@@ -48,9 +49,11 @@ extern int cmdr_confirm_default(struct cmdr_state *state, const char *msg, int d
             exit(EXIT_FAILURE); \
         } \
     } while(0)
-
 #define CMDR_ASSERT(cond) \
     CMDR_ASSERT_MSG(cond, "assert failed: %s", #cond)
+#elif !defined(CMDR_ASSERT_MSG) && !defined(CMDR_ASSERT)
+#error "CMDR_ASSESRT_MSG and CMDR_ASSERT must be defined together"
+#endif // !defined(CMDR_ASSERT_MSG) && !defined(CMDR_ASSERT)
 
 static int cmdr_internal_valid_command(const char *command);
 static int cmdr_internal_valid_flag(const char *flag);
